@@ -78,6 +78,24 @@ export function isSpeechRecognitionAvailable(): boolean {
   return getSpeechRecognitionConstructor() !== null;
 }
 
+function describeRecognitionError(errorCode: string): string {
+  switch (errorCode) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "Microphone access is blocked. Allow the microphone permission for this site and try again.";
+    case "no-speech":
+      return "No speech was detected. Try again and speak clearly after pressing Listen.";
+    case "audio-capture":
+      return "No microphone was found. Connect a microphone and try again.";
+    case "network":
+      return "Speech recognition needs an internet connection (the browser sends audio to its speech service). Check connectivity and try again.";
+    case "aborted":
+      return "Listening was stopped before a command was captured.";
+    default:
+      return `Speech recognition error: ${errorCode}. Try again or type a command.`;
+  }
+}
+
 export function createSpeechRecognitionSession(
   handlers: SpeechRecognitionHandlers,
 ): SpeechRecognitionSession | null {
@@ -94,18 +112,11 @@ export function createSpeechRecognitionSession(
   recognition.continuous = false;
   recognition.interimResults = false;
   recognition.lang = "en-US";
+  recognition.maxAlternatives = 1;
   recognition.onresult = (event) => {
     const shouldHandleResult = acceptResults;
     acceptResults = false;
     const transcript = extractTranscript(event);
-
-    try {
-      recognition.stop();
-    } catch {
-      // A final result can arrive after the browser has already stopped recognition.
-    }
-
-    active = false;
 
     if (!shouldHandleResult) {
       return;
@@ -119,6 +130,29 @@ export function createSpeechRecognitionSession(
     }
 
     handlers.onTranscript(transcript);
+  };
+  recognition.onerror = (event) => {
+    const shouldReport = acceptResults;
+    acceptResults = false;
+    active = false;
+
+    if (shouldReport) {
+      handlers.onTranscriptError(describeRecognitionError(event.error));
+    }
+  };
+  // onend fires after every session, whatever the outcome (result, error,
+  // silence timeout). It is the only reliable place to mark the recognizer
+  // reusable; without it, one silent/failed attempt left `active` stuck true
+  // and every later start() became a no-op while the UI claimed to listen.
+  recognition.onend = () => {
+    active = false;
+
+    if (acceptResults) {
+      acceptResults = false;
+      handlers.onTranscriptError(
+        "Listening ended without capturing any speech. Try again and speak right after pressing Listen.",
+      );
+    }
   };
 
   return {
@@ -145,7 +179,7 @@ export function createSpeechRecognitionSession(
       acceptResults = false;
 
       try {
-        recognition.stop();
+        recognition.abort();
       } finally {
         active = false;
       }
@@ -153,10 +187,12 @@ export function createSpeechRecognitionSession(
     dispose() {
       acceptResults = false;
       recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
 
       if (active) {
         try {
-          recognition.stop();
+          recognition.abort();
         } catch {
           // Cleanup must remain safe when the browser has already ended the session.
         }

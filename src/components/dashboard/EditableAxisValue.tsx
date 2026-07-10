@@ -3,18 +3,30 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 type EditableAxisValueProps = {
   disabled?: boolean;
-  onCommit: (value: number) => void;
+  /** Editing draft text; null renders the live value and waits for a click. */
+  draft: string | null;
+  onBeginEdit: () => void;
+  onCancel: () => void;
+  onDraftChange: (draft: string) => void;
+  onSubmit: () => void;
   value: number;
 };
 
-export function EditableAxisValue({ disabled = false, onCommit, value }: EditableAxisValueProps) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value.toFixed(3));
+export function EditableAxisValue({
+  disabled = false,
+  draft,
+  onBeginEdit,
+  onCancel,
+  onDraftChange,
+  onSubmit,
+  value,
+}: EditableAxisValueProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const editing = draft !== null;
 
   useEffect(() => {
     if (editing) {
@@ -23,48 +35,21 @@ export function EditableAxisValue({ disabled = false, onCommit, value }: Editabl
     }
   }, [editing]);
 
-  function startEdit(event: React.MouseEvent<HTMLSpanElement>) {
-    event.preventDefault();
-
-    if (disabled) {
-      return;
-    }
-
-    setDraft(value.toFixed(3));
-    setEditing(true);
-  }
-
-  function commit() {
-    const parsed = Number.parseFloat(draft);
-
-    if (Number.isFinite(parsed)) {
-      onCommit(parsed);
-    }
-
-    setEditing(false);
-  }
-
-  function cancel() {
-    setDraft(value.toFixed(3));
-    setEditing(false);
-  }
-
   if (editing) {
     return (
       <input
         className="w-14 rounded border border-cyan-500 bg-slate-900 px-1 font-mono text-[11px] text-cyan-100 outline-none"
         inputMode="decimal"
-        onBlur={cancel}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => onDraftChange(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
-            commit();
+            onSubmit();
           }
 
           if (event.key === "Escape") {
             event.preventDefault();
-            cancel();
+            onCancel();
           }
         }}
         ref={inputRef}
@@ -75,9 +60,17 @@ export function EditableAxisValue({ disabled = false, onCommit, value }: Editabl
 
   return (
     <span
-      className={disabled ? "" : "cursor-context-menu decoration-dotted decoration-slate-500 hover:underline"}
-      onContextMenu={startEdit}
-      title={disabled ? undefined : "Right-click to edit, Enter to move here"}
+      className={
+        disabled
+          ? ""
+          : "cursor-pointer decoration-dotted decoration-slate-500 hover:underline"
+      }
+      onClick={() => {
+        if (!disabled) {
+          onBeginEdit();
+        }
+      }}
+      title={disabled ? undefined : "Click to edit, then press Save changes"}
     >
       {value.toFixed(3)}
     </span>

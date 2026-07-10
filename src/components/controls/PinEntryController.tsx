@@ -11,7 +11,7 @@ export function PinEntryController() {
     setPin,
     start,
     stop,
-    reset,
+    goHome,
     running,
     currentDigit,
     currentPhase,
@@ -67,10 +67,11 @@ export function PinEntryController() {
         <button
           className="rounded border border-slate-700 bg-slate-800 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
           disabled={running}
-          onClick={reset}
+          onClick={() => void goHome()}
+          title="Clear PIN progress and return the arm to its default vertical pose"
           type="button"
         >
-          Reset
+          Default
         </button>
       </div>
       <p

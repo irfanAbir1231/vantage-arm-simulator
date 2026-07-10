@@ -19,6 +19,10 @@ type KeyboardFeedback = {
 };
 
 const STEP = ROBOT_CONFIG.movementStep;
+// Hold a key this long before it starts auto-repeating.
+const HOLD_REPEAT_DELAY_MS = 500;
+// Cadence of the repeated jog once a key has been held past the delay.
+const HOLD_REPEAT_INTERVAL_MS = 150;
 
 const KEY_DELTAS: Record<string, Vector3Value> = {
   w: { x: 0, y: STEP, z: 0 },
@@ -49,8 +53,14 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
+type HeldKeyTimers = {
+  repeatDelay: ReturnType<typeof setTimeout>;
+  repeatInterval: ReturnType<typeof setInterval> | null;
+};
+
 export function useKeyboardControl(enabled = true) {
   const isExecutingRef = useRef(false);
+  const heldKeysRef = useRef(new Map<string, HeldKeyTimers>());
   const [isMoving, setIsMoving] = useState(false);
   const [feedback, setFeedback] = useState<KeyboardFeedback>({
     message: "Keyboard control ready.",
@@ -58,6 +68,22 @@ export function useKeyboardControl(enabled = true) {
   });
 
   useEffect(() => {
+    function clearHeldKey(key: string): void {
+      const timers = heldKeysRef.current.get(key);
+
+      if (!timers) {
+        return;
+      }
+
+      clearTimeout(timers.repeatDelay);
+
+      if (timers.repeatInterval) {
+        clearInterval(timers.repeatInterval);
+      }
+
+      heldKeysRef.current.delete(key);
+    }
+
     async function executeDelta(delta: Vector3Value): Promise<void> {
       if (isExecutingRef.current) {
         return;
@@ -92,12 +118,7 @@ export function useKeyboardControl(enabled = true) {
     }
 
     function handleKeyDown(event: KeyboardEvent): void {
-      if (
-        event.repeat ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey
-      ) {
+      if (event.ctrlKey || event.metaKey || event.altKey) {
         return;
       }
 
@@ -116,18 +137,57 @@ export function useKeyboardControl(enabled = true) {
         return;
       }
 
-      const delta = KEY_DELTAS[event.key.toLowerCase()];
+      const key = event.key.toLowerCase();
+      const delta = KEY_DELTAS[key];
 
       if (!delta) {
         return;
       }
 
       event.preventDefault();
+
+      // Ignore the OS's own key-repeat events; we drive repetition ourselves
+      // below so the cadence is consistent across browsers/platforms.
+      if (event.repeat || heldKeysRef.current.has(key)) {
+        return;
+      }
+
       void executeDelta(delta);
+
+      const repeatDelay = setTimeout(() => {
+        const timers = heldKeysRef.current.get(key);
+        if (!timers) {
+          return;
+        }
+
+        timers.repeatInterval = setInterval(() => {
+          void executeDelta(delta);
+        }, HOLD_REPEAT_INTERVAL_MS);
+      }, HOLD_REPEAT_DELAY_MS);
+
+      heldKeysRef.current.set(key, { repeatDelay, repeatInterval: null });
+    }
+
+    function handleKeyUp(event: KeyboardEvent): void {
+      clearHeldKey(event.key.toLowerCase());
+    }
+
+    function handleBlur(): void {
+      for (const key of [...heldKeysRef.current.keys()]) {
+        clearHeldKey(key);
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+      handleBlur();
+    };
   }, [enabled]);
 
   return {

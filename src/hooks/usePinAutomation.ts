@@ -148,15 +148,22 @@ export function usePinAutomation() {
     }));
   }
 
-  function reset(): void {
+  async function goHome(): Promise<void> {
     if (runningRef.current) {
       return;
     }
 
     cancellationRequestedRef.current = false;
     setPin("");
-    setProgress(createInitialProgress());
     useRobotStore.getState().resetPinProgress();
+    setProgress({
+      ...createInitialProgress(),
+      message: "Returning to the default vertical pose...",
+    });
+
+    const result = await executeMotionCommand({ type: "HOME", source: "dashboard" });
+
+    setProgress((current) => ({ ...current, message: result.message }));
   }
 
   return {
@@ -164,7 +171,7 @@ export function usePinAutomation() {
     setPin,
     start,
     stop,
-    reset,
+    goHome,
     running,
     currentDigit: progress.currentDigit,
     currentIndex: progress.currentIndex,

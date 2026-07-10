@@ -21,6 +21,10 @@ export function formatRadians(value: number): string {
   return `${value.toFixed(3)} rad`;
 }
 
+export function formatDegrees(value: number): string {
+  return `${(value * (180 / Math.PI)).toFixed(1)}°`;
+}
+
 export function formatVector(vector: Vector3Value): string {
   return `X ${formatMeters(vector.x)} | Y ${formatMeters(vector.y)} | Z ${formatMeters(vector.z)}`;
 }

@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { useRobotStore } from "@/store/robot-store";
 
 import { DashboardLayout } from "./DashboardLayout";
-import { formatRadians, sortJointNames } from "./formatters";
+import { formatDegrees, formatRadians, sortJointNames } from "./formatters";
 
 export function JointStatePanel() {
   const jointAngles = useRobotStore((state) => state.jointAngles);
@@ -27,8 +27,11 @@ export function JointStatePanel() {
               key={jointName}
             >
               <dt className="truncate text-[11px] text-slate-400">{jointName}</dt>
-              <dd className="whitespace-nowrap font-mono text-[11px] text-slate-100">
-                {formatRadians(jointAngles[jointName])}
+              <dd
+                className="whitespace-nowrap font-mono text-[11px] text-slate-100"
+                title={formatRadians(jointAngles[jointName])}
+              >
+                {formatDegrees(jointAngles[jointName])}
               </dd>
             </div>
           ))}

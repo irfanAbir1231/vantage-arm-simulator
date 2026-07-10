@@ -3,7 +3,7 @@
 
 export { createEmptyPinConfig, normalizePinConfig } from "./config-loader";
 export { createPinSequence } from "./pin-sequence";
-export { validatePin } from "./pin-validator";
+export { validatePin, validatePinDetailed } from "./pin-validator";
 export { describeKeyPress } from "./press-key";
 export type {
   NormalizedPinConfig,

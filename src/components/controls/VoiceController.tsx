@@ -3,9 +3,15 @@
 
 "use client";
 
+import { useState } from "react";
+
 import { useVoiceControl } from "@/hooks/useVoiceControl";
 
-export function VoiceController() {
+import { AgenticVoiceController } from "./AgenticVoiceController";
+
+type VoiceMode = "deterministic" | "agentic";
+
+function DeterministicVoiceController() {
   const {
     input,
     setInput,
@@ -88,6 +94,40 @@ export function VoiceController() {
           Result: {result}
         </p>
       </div>
+    </div>
+  );
+}
+
+export function VoiceController() {
+  const [mode, setMode] = useState<VoiceMode>("deterministic");
+
+  return (
+    <div>
+      <div className="mb-2 grid grid-cols-2 rounded border border-slate-800 p-0.5">
+        <button
+          className={`rounded px-2 py-1 text-[10px] font-semibold transition ${
+            mode === "deterministic"
+              ? "bg-slate-700 text-slate-100"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+          onClick={() => setMode("deterministic")}
+          type="button"
+        >
+          Deterministic
+        </button>
+        <button
+          className={`rounded px-2 py-1 text-[10px] font-semibold transition ${
+            mode === "agentic"
+              ? "bg-cyan-950 text-cyan-100"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+          onClick={() => setMode("agentic")}
+          type="button"
+        >
+          Agentic
+        </button>
+      </div>
+      {mode === "deterministic" ? <DeterministicVoiceController /> : <AgenticVoiceController />}
     </div>
   );
 }

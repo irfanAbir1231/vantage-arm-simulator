@@ -46,6 +46,21 @@ npm run lint
 npm run build
 ```
 
+## Agentic Voice Mode
+
+The Voice panel defaults to deterministic mode, which works locally without a network connection or provider configuration. Agentic mode is optional: it can interpret free-form, multi-step instructions, request clarification for ambiguous requests, and displays a plan that must be explicitly confirmed before any movement begins.
+
+Agentic plans can use relative Cartesian movement, absolute Cartesian movement, individual joint movement, trusted panel-key presses, home, and stop. Every compiled step is sent through the same deterministic motion controller, workspace validation, inverse-kinematics, joint-limit, and cancellation pipeline as the other controls. Key presses use only the organizer-provided `public/robot/key.config.json` positions and the existing hover/touch/retract planner.
+
+Configure these server-side variables in your local environment or deployment provider without committing a secret file:
+
+```text
+GROQ_API_KEY=<configured in local/deployment environment>
+GROQ_MODEL=<a Groq chat model available to the account>
+```
+
+Never use `NEXT_PUBLIC_GROQ_API_KEY` or `NEXT_PUBLIC_GROQ_MODEL`. The browser sends only the instruction and non-secret robot context to `/api/agent/interpret`; the Groq request and authorization header exist only on the server. If agentic interpretation is unavailable, the app safely tries the existing deterministic voice parser with the same transcript. Browser speech recognition and speech feedback depend on browser support, while typed commands remain available.
+
 ## Six-Hour Priority Order
 
 1. Autonomous PIN entry

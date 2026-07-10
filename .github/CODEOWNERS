@@ -1,0 +1,28 @@
+/src/components/robot/ @member1
+/src/components/dashboard/ @member1
+/src/app/page.tsx @member1
+/src/app/globals.css @member1
+/public/robot/ @member1
+
+/src/lib/robot/ @member2
+/src/store/robot-store.ts @member2
+/src/tests/robot/ @member2
+
+/src/components/controls/ @member3
+/src/hooks/ @member3
+/src/lib/voice/ @member3
+/src/lib/pin/ @member3
+/src/tests/controls/ @member3
+
+/hardware/ @member4
+/docs/ @member4
+/presentation/ @member4
+/README.md @member4
+
+/package.json @teamlead
+/package-lock.json @teamlead
+/tsconfig.json @teamlead
+/next.config.ts @teamlead
+/eslint.config.mjs @teamlead
+/src/app/layout.tsx @teamlead
+/src/types/ @teamlead

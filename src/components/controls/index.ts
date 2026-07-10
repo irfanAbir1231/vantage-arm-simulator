@@ -3,7 +3,9 @@
 
 export { CartesianJoystick } from "./CartesianJoystick";
 export { ControlWorkspace } from "./ControlWorkspace";
+export { DragJoystick } from "./DragJoystick";
 export { EmergencyStopButton } from "./EmergencyStopButton";
 export { KeyboardController } from "./KeyboardController";
 export { PinEntryController } from "./PinEntryController";
+export { VerticalJogSlider } from "./VerticalJogSlider";
 export { VoiceController } from "./VoiceController";

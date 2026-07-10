@@ -3,13 +3,17 @@
 
 "use client";
 
-import { Text } from "@react-three/drei";
+import { RoundedBox, Text } from "@react-three/drei";
 import { useEffect, useMemo, useState } from "react";
 
 import { useRobotStore } from "@/store/robot-store";
 
 import { fetchKeyConfig, type NormalizedKeyConfig } from "./key-config";
 import { baseFrameToScenePosition } from "./scene-coordinates";
+
+const KEY_FOOTPRINT = 0.034;
+const KEY_IDLE_HEIGHT = 0.022;
+const KEY_PRESSED_HEIGHT = 0.009;
 
 export function TestPanel() {
   const activeKey = useRobotStore((state) => state.activeKey);
@@ -81,30 +85,43 @@ export function TestPanel() {
       ) : null}
       {keys.map((key) => {
         const isActive = activeKey === key.label;
-        const color = isActive ? "#facc15" : "#38bdf8";
-        const height = isActive ? 0.03 : 0.02;
+        const height = isActive ? KEY_PRESSED_HEIGHT : KEY_IDLE_HEIGHT;
+        const capColor = isActive ? "#fbbf24" : "#eef2f8";
+        const capEmissive = isActive ? "#7c2d12" : "#1e293b";
+        const collarColor = isActive ? "#78350f" : "#16324f";
+        const textColor = isActive ? "#1c1207" : "#0f172a";
 
         return (
           <group
             key={key.label}
             position={baseFrameToScenePosition(key.position)}
           >
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
-              <ringGeometry args={[0.024, 0.03, 24]} />
-              <meshBasicMaterial color={isActive ? "#fde68a" : "#1e3a5f"} />
+            {/* recessed collar the keycap sinks into when pressed */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0015, 0]}>
+              <ringGeometry args={[0.023, 0.031, 32]} />
+              <meshBasicMaterial color={collarColor} />
             </mesh>
-            <mesh castShadow receiveShadow position={[0, height / 2, 0]}>
-              <boxGeometry args={[0.036, height, 0.036]} />
+            <RoundedBox
+              args={[KEY_FOOTPRINT, height, KEY_FOOTPRINT]}
+              castShadow
+              position={[0, height / 2, 0]}
+              radius={0.004}
+              receiveShadow
+              smoothness={4}
+            >
               <meshStandardMaterial
-                color={color}
-                emissive={isActive ? "#713f12" : "#082f49"}
-                roughness={0.45}
+                color={capColor}
+                emissive={capEmissive}
+                emissiveIntensity={isActive ? 0.6 : 0.15}
+                metalness={0.1}
+                roughness={isActive ? 0.35 : 0.5}
               />
-            </mesh>
+            </RoundedBox>
             <Text
-              color="#e0f2fe"
-              fontSize={0.024}
-              position={[0, height + 0.014, 0]}
+              color={textColor}
+              fontSize={0.021}
+              fontWeight={700}
+              position={[0, height + 0.0015, 0]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
               {key.label}

@@ -7,6 +7,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { parseVoiceCommand } from "@/lib/voice";
 import {
+  isAudioRecordingAvailable,
+  startAudioRecording,
+  transcribeAudio,
+  type AudioRecordingSession,
+} from "@/lib/voice/audio-recorder";
+import {
   createSpeechRecognitionSession,
   isSpeechRecognitionAvailable,
   type SpeechRecognitionSession,
@@ -39,18 +45,29 @@ function getServerSpeechRecognitionAvailability(): boolean {
   return false;
 }
 
+function isVoiceCaptureAvailable(): boolean {
+  return isSpeechRecognitionAvailable() || isAudioRecordingAvailable();
+}
+
+// Records for at most this long before auto-transcribing, so a forgotten
+// Stop click cannot leave the microphone open indefinitely.
+const FALLBACK_MAX_RECORDING_MS = 6000;
+
 export function useVoiceControl() {
   const isExecutingRef = useRef(false);
   const executionVersionRef = useRef(0);
   const recognitionSessionRef = useRef<SpeechRecognitionSession | null>(null);
   const listeningRef = useRef(false);
+  const fallbackModeRef = useRef(false);
+  const recorderRef = useRef<AudioRecordingSession | null>(null);
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [input, setInput] = useState("");
   const [transcript, setTranscript] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [listening, setListening] = useState(false);
   const speechRecognitionAvailable = useSyncExternalStore(
     subscribeToSpeechRecognitionAvailability,
-    isSpeechRecognitionAvailable,
+    isVoiceCaptureAvailable,
     getServerSpeechRecognitionAvailability,
   );
   const [feedback, setFeedback] = useState<VoiceCommandFeedback>({
@@ -147,7 +164,99 @@ export function useVoiceControl() {
   function handleTranscriptError(message: string): void {
     listeningRef.current = false;
     setListening(false);
+
+    // The browser's built-in recognition streams audio to a vendor speech
+    // service; when that service is unreachable (Brave shields, VPN,
+    // firewall) it reports "network" even though the site itself is online.
+    // Switch to recording locally and transcribing through our own API.
+    if (!fallbackModeRef.current && message.includes("internet connection")) {
+      if (isAudioRecordingAvailable()) {
+        fallbackModeRef.current = true;
+        void startFallbackListening(
+          "Browser speech service unreachable. Switched to server transcription - recording now, press Stop when done.",
+        );
+        return;
+      }
+
+      setSpeechFeedback({
+        message:
+          "Browser speech service is unreachable and microphone recording is unsupported here. Use typed commands.",
+        isError: true,
+      });
+      return;
+    }
+
     setSpeechFeedback({ message, isError: true });
+  }
+
+  async function startFallbackListening(startMessage?: string): Promise<void> {
+    if (listeningRef.current || recorderRef.current) {
+      return;
+    }
+
+    try {
+      const recorder = await startAudioRecording();
+      recorderRef.current = recorder;
+      listeningRef.current = true;
+      setListening(true);
+      setSpeechFeedback({
+        message:
+          startMessage ??
+          "Recording (server transcription)... speak your command, then press Stop.",
+        isError: false,
+      });
+      recordingTimeoutRef.current = setTimeout(() => {
+        void finishFallbackListening();
+      }, FALLBACK_MAX_RECORDING_MS);
+    } catch (error) {
+      setSpeechFeedback({
+        message:
+          error instanceof Error && error.name === "NotAllowedError"
+            ? "Microphone access is blocked. Allow the microphone permission for this site."
+            : "Could not start microphone recording. Use typed commands instead.",
+        isError: true,
+      });
+    }
+  }
+
+  async function finishFallbackListening(): Promise<void> {
+    const recorder = recorderRef.current;
+
+    if (!recorder) {
+      return;
+    }
+
+    recorderRef.current = null;
+
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+
+    listeningRef.current = false;
+    setListening(false);
+    setSpeechFeedback({ message: "Transcribing your command...", isError: false });
+
+    try {
+      const audio = await recorder.stop();
+      const recognizedTranscript = await transcribeAudio(audio);
+
+      if (recognizedTranscript.length === 0) {
+        setSpeechFeedback({
+          message: "No speech was detected in the recording. Try again.",
+          isError: true,
+        });
+        return;
+      }
+
+      handleTranscript(recognizedTranscript);
+    } catch (error) {
+      setSpeechFeedback({
+        message:
+          error instanceof Error ? error.message : "Transcription failed. Use typed commands.",
+        isError: true,
+      });
+    }
   }
 
   function executeTypedCommand(): Promise<void> {
@@ -162,6 +271,19 @@ export function useVoiceControl() {
     if (isExecutingRef.current) {
       setSpeechFeedback({
         message: "Wait for the current command to finish before listening.",
+        isError: true,
+      });
+      return;
+    }
+
+    if (fallbackModeRef.current || !isSpeechRecognitionAvailable()) {
+      if (isAudioRecordingAvailable()) {
+        void startFallbackListening();
+        return;
+      }
+
+      setSpeechFeedback({
+        message: "Voice capture is unavailable in this browser. Use typed commands.",
         isError: true,
       });
       return;
@@ -204,6 +326,11 @@ export function useVoiceControl() {
   }
 
   function stopListening(): void {
+    if (recorderRef.current) {
+      void finishFallbackListening();
+      return;
+    }
+
     const session = recognitionSessionRef.current;
 
     if (!session || !listeningRef.current) {
@@ -234,6 +361,14 @@ export function useVoiceControl() {
     return () => {
       recognitionSessionRef.current?.dispose();
       recognitionSessionRef.current = null;
+      recorderRef.current?.cancel();
+      recorderRef.current = null;
+
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
+      }
+
       listeningRef.current = false;
     };
   }, []);

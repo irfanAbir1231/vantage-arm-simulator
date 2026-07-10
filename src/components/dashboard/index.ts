@@ -4,6 +4,7 @@
 export { DashboardLayout } from "./DashboardLayout";
 export { EndEffectorPanel } from "./EndEffectorPanel";
 export { JointStatePanel } from "./JointStatePanel";
+export { MessageBar } from "./MessageBar";
 export { RobotDashboard } from "./RobotDashboard";
 export { SystemStatus } from "./SystemStatus";
 export {

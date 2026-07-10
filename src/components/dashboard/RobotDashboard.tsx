@@ -3,14 +3,12 @@
 
 import { EndEffectorPanel } from "./EndEffectorPanel";
 import { JointStatePanel } from "./JointStatePanel";
-import { SystemStatus } from "./SystemStatus";
 
 export function RobotDashboard() {
   return (
-    <div className="grid gap-4">
-      <SystemStatus />
-      <JointStatePanel />
+    <div className="grid gap-2">
       <EndEffectorPanel />
+      <JointStatePanel />
     </div>
   );
 }

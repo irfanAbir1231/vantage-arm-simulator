@@ -2,21 +2,30 @@
 // Do not edit without coordinating with the owner.
 
 import { ControlWorkspace } from "@/components/controls";
-import { RobotDashboard } from "@/components/dashboard";
+import { MessageBar, RobotDashboard, SystemStatus } from "@/components/dashboard";
 import { RobotScene } from "@/components/robot";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <main className="mx-auto grid min-h-screen w-full max-w-7xl gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="h-[620px] min-h-[520px] self-start lg:h-[760px]">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
+      <header className="flex h-11 shrink-0 items-center gap-4 border-b border-slate-800 bg-slate-900/80 px-4">
+        <h1 className="whitespace-nowrap text-sm font-bold tracking-[0.2em] text-slate-100">
+          VANTAGE<span className="text-cyan-400">ARM</span>
+        </h1>
+        <SystemStatus />
+      </header>
+      <main className="grid min-h-0 flex-1 grid-cols-[226px_minmax(0,1fr)_290px] gap-2 p-2">
+        <aside className="min-h-0 overflow-y-auto">
+          <RobotDashboard />
+        </aside>
+        <section className="min-h-0">
           <RobotScene />
         </section>
-        <aside className="flex flex-col gap-4">
-          <RobotDashboard />
+        <aside className="min-h-0 overflow-y-auto">
           <ControlWorkspace />
         </aside>
       </main>
+      <MessageBar />
     </div>
   );
 }

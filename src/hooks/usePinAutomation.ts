@@ -148,11 +148,23 @@ export function usePinAutomation() {
     }));
   }
 
+  function reset(): void {
+    if (runningRef.current) {
+      return;
+    }
+
+    cancellationRequestedRef.current = false;
+    setPin("");
+    setProgress(createInitialProgress());
+    useRobotStore.getState().resetPinProgress();
+  }
+
   return {
     pin,
     setPin,
     start,
     stop,
+    reset,
     running,
     currentDigit: progress.currentDigit,
     currentIndex: progress.currentIndex,

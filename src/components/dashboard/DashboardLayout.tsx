@@ -10,11 +10,11 @@ type DashboardLayoutProps = {
 
 export function DashboardLayout({ title, children }: DashboardLayoutProps) {
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+    <section className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+      <h2 className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
         {title}
       </h2>
-      <div className="mt-3">{children}</div>
+      <div className="mt-2">{children}</div>
     </section>
   );
 }

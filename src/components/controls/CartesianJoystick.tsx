@@ -11,27 +11,17 @@ import {
   type MotionCommand,
   type Vector3Value,
 } from "@/lib/robot";
+import { useRobotStore } from "@/store/robot-store";
 
-type JoystickDirection = {
-  label: string;
-  delta: Vector3Value;
-};
+const STEP = ROBOT_CONFIG.movementStep;
+
+const JOG_BUTTON_CLASS_NAME =
+  "flex h-9 items-center justify-center rounded border border-slate-700 bg-slate-950 text-xs font-semibold text-slate-100 transition hover:border-cyan-500 hover:text-cyan-200 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40";
 
 type ControlFeedback = {
   message: string;
   isError: boolean;
 };
-
-const STEP = ROBOT_CONFIG.movementStep;
-
-const DIRECTIONS: JoystickDirection[] = [
-  { label: "Left", delta: { x: -STEP, y: 0, z: 0 } },
-  { label: "Right", delta: { x: STEP, y: 0, z: 0 } },
-  { label: "Forward", delta: { x: 0, y: STEP, z: 0 } },
-  { label: "Backward", delta: { x: 0, y: -STEP, z: 0 } },
-  { label: "Up", delta: { x: 0, y: 0, z: STEP } },
-  { label: "Down", delta: { x: 0, y: 0, z: -STEP } },
-];
 
 let joystickCommandSequence = 0;
 
@@ -44,12 +34,13 @@ export function CartesianJoystick() {
   const isExecutingRef = useRef(false);
   const [isMoving, setIsMoving] = useState(false);
   const [feedback, setFeedback] = useState<ControlFeedback>({
-    message: `Jog step: ${STEP} m`,
+    message: "Ready to jog.",
     isError: false,
   });
+  const robotMoving = useRobotStore((state) => state.status === "moving");
 
-  async function move(delta: Vector3Value): Promise<void> {
-    if (isExecutingRef.current) {
+  async function jog(delta: Vector3Value): Promise<void> {
+    if (isExecutingRef.current || robotMoving) {
       return;
     }
 
@@ -79,30 +70,48 @@ export function CartesianJoystick() {
     }
   }
 
+  const jogButton = (label: string, delta: Vector3Value) => (
+    <button
+      className={JOG_BUTTON_CLASS_NAME}
+      disabled={isMoving || robotMoving}
+      onClick={() => void jog(delta)}
+      title={`Move ${label} by ${STEP.toFixed(2)} m`}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+
   return (
-    <div className="rounded-md border border-slate-800 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-slate-200">Cartesian Joystick</h3>
-        <span className="text-xs text-slate-500">{STEP} m / jog</span>
+    <div>
+      <div className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+        <span>Cartesian Jog</span>
+        <span>step {STEP.toFixed(2)} m</span>
       </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {DIRECTIONS.map(({ label, delta }) => (
-          <button
-            className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isMoving}
-            key={label}
-            onClick={() => void move(delta)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex gap-2">
+        <div className="grid flex-1 grid-cols-3 gap-1.5">
+          <span />
+          {jogButton("Y+", { x: 0, y: STEP, z: 0 })}
+          <span />
+          {jogButton("X-", { x: -STEP, y: 0, z: 0 })}
+          <span className="flex items-center justify-center text-[10px] text-slate-600">XY</span>
+          {jogButton("X+", { x: STEP, y: 0, z: 0 })}
+          <span />
+          {jogButton("Y-", { x: 0, y: -STEP, z: 0 })}
+          <span />
+        </div>
+        <div className="grid w-14 grid-rows-3 gap-1.5">
+          {jogButton("Z+", { x: 0, y: 0, z: STEP })}
+          <span className="flex items-center justify-center text-[10px] text-slate-600">Z</span>
+          {jogButton("Z-", { x: 0, y: 0, z: -STEP })}
+        </div>
       </div>
-
       <p
         aria-live="polite"
-        className={`mt-3 text-xs ${feedback.isError ? "text-red-300" : "text-slate-400"}`}
+        className={`mt-2 truncate text-[11px] ${
+          feedback.isError ? "text-red-300" : "text-slate-400"
+        }`}
+        title={feedback.message}
       >
         {feedback.message}
       </p>

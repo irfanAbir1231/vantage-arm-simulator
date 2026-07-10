@@ -49,7 +49,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function useKeyboardControl() {
+export function useKeyboardControl(enabled = true) {
   const isExecutingRef = useRef(false);
   const [isMoving, setIsMoving] = useState(false);
   const [feedback, setFeedback] = useState<KeyboardFeedback>({
@@ -112,6 +112,10 @@ export function useKeyboardControl() {
         return;
       }
 
+      if (!enabled) {
+        return;
+      }
+
       const delta = KEY_DELTAS[event.key.toLowerCase()];
 
       if (!delta) {
@@ -124,12 +128,14 @@ export function useKeyboardControl() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [enabled]);
 
   return {
-    enabled: true,
+    enabled,
     isMoving,
-    message: feedback.message,
+    message: enabled
+      ? feedback.message
+      : "Keyboard jog is off. Escape remains active.",
     isError: feedback.isError,
   };
 }

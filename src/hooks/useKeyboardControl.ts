@@ -96,8 +96,7 @@ export function useKeyboardControl() {
         event.repeat ||
         event.ctrlKey ||
         event.metaKey ||
-        event.altKey ||
-        isEditableTarget(event.target)
+        event.altKey
       ) {
         return;
       }
@@ -106,6 +105,10 @@ export function useKeyboardControl() {
         event.preventDefault();
         cancelMotion();
         setFeedback({ message: "Motion cancellation requested.", isError: false });
+        return;
+      }
+
+      if (isEditableTarget(event.target)) {
         return;
       }
 

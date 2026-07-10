@@ -11,6 +11,8 @@ import type {
 
 const PIN_APPROACH_AXES = ["+x", "-x", "+y", "-y", "+z", "-z"] as const;
 
+export const DEFAULT_PIN_CONFIG_URL = "/robot/key.config.json";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -108,4 +110,40 @@ export function normalizePinConfig(raw: unknown): PinConfigParseResult {
   };
 
   return { success: true, config };
+}
+
+export async function loadPinConfig(
+  url = DEFAULT_PIN_CONFIG_URL,
+): Promise<PinConfigParseResult> {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `Failed to load panel configuration from "${url}" (${response.status}).`,
+      };
+    }
+
+    let raw: unknown;
+
+    try {
+      raw = await response.json();
+    } catch {
+      return {
+        success: false,
+        error: `Panel configuration at "${url}" is not valid JSON.`,
+      };
+    }
+
+    return normalizePinConfig(raw);
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? `Failed to load panel configuration from "${url}": ${error.message}`
+          : `Failed to load panel configuration from "${url}".`,
+    };
+  }
 }

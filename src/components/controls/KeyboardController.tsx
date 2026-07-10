@@ -18,7 +18,7 @@ const KEY_HINTS: Array<{ keyLabel: string; action: string }> = [
 
 export function KeyboardController() {
   const [enabled, setEnabled] = useState(false);
-  const { message } = useKeyboardControl(enabled);
+  const { isMoving, message, isError } = useKeyboardControl(enabled);
 
   return (
     <div className="mt-3 border-t border-slate-800 pt-3">
@@ -26,7 +26,7 @@ export function KeyboardController() {
         <span>Keyboard Jog</span>
         <span className="flex items-center gap-1.5 normal-case tracking-normal">
           <span className={`text-[11px] font-medium ${enabled ? "text-cyan-300" : "text-slate-500"}`}>
-            {enabled ? "on" : "off"}
+            {isMoving ? "moving" : enabled ? "on" : "off"}
           </span>
           <input
             checked={enabled}
@@ -49,7 +49,13 @@ export function KeyboardController() {
           </span>
         ))}
       </div>
-      <p className="mt-2 truncate text-[11px] text-slate-400" title={message}>
+      <p
+        aria-live="polite"
+        className={`mt-2 truncate text-[11px] ${
+          isError ? "text-red-300" : "text-slate-400"
+        }`}
+        title={message}
+      >
         {message}
       </p>
     </div>

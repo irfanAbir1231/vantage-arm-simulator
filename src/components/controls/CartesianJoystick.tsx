@@ -3,9 +3,14 @@
 
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { executeMotionCommand, ROBOT_CONFIG, type Vector3Value } from "@/lib/robot";
+import {
+  executeMotionCommand,
+  ROBOT_CONFIG,
+  type MotionCommand,
+  type Vector3Value,
+} from "@/lib/robot";
 import { useRobotStore } from "@/store/robot-store";
 
 const STEP = ROBOT_CONFIG.movementStep;
@@ -13,23 +18,62 @@ const STEP = ROBOT_CONFIG.movementStep;
 const JOG_BUTTON_CLASS_NAME =
   "flex h-9 items-center justify-center rounded border border-slate-700 bg-slate-950 text-xs font-semibold text-slate-100 transition hover:border-cyan-500 hover:text-cyan-200 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40";
 
-export function CartesianJoystick() {
-  const [message, setMessage] = useState("Ready to jog.");
-  const moving = useRobotStore((state) => state.status === "moving");
+type ControlFeedback = {
+  message: string;
+  isError: boolean;
+};
 
-  const jog = async (delta: Vector3Value) => {
-    const result = await executeMotionCommand({
+let joystickCommandSequence = 0;
+
+function createJoystickCommandId(): string {
+  joystickCommandSequence += 1;
+  return `joystick-${Date.now()}-${joystickCommandSequence}`;
+}
+
+export function CartesianJoystick() {
+  const isExecutingRef = useRef(false);
+  const [isMoving, setIsMoving] = useState(false);
+  const [feedback, setFeedback] = useState<ControlFeedback>({
+    message: "Ready to jog.",
+    isError: false,
+  });
+  const robotMoving = useRobotStore((state) => state.status === "moving");
+
+  async function jog(delta: Vector3Value): Promise<void> {
+    if (isExecutingRef.current || robotMoving) {
+      return;
+    }
+
+    const command: MotionCommand = {
+      id: createJoystickCommandId(),
       type: "MOVE_RELATIVE",
       source: "joystick",
-      delta,
-    });
-    setMessage(result.message);
-  };
+      delta: { ...delta },
+    };
+
+    isExecutingRef.current = true;
+    setIsMoving(true);
+    setFeedback({ message: "Sending joystick movement...", isError: false });
+
+    try {
+      const result = await executeMotionCommand(command);
+      setFeedback({ message: result.message, isError: !result.success });
+    } catch (error) {
+      setFeedback({
+        message:
+          error instanceof Error ? error.message : "Joystick movement failed unexpectedly.",
+        isError: true,
+      });
+    } finally {
+      isExecutingRef.current = false;
+      setIsMoving(false);
+    }
+  }
 
   const jogButton = (label: string, delta: Vector3Value) => (
     <button
       className={JOG_BUTTON_CLASS_NAME}
-      disabled={moving}
+      disabled={isMoving || robotMoving}
       onClick={() => void jog(delta)}
       title={`Move ${label} by ${STEP.toFixed(2)} m`}
       type="button"
@@ -62,8 +106,14 @@ export function CartesianJoystick() {
           {jogButton("Z-", { x: 0, y: 0, z: -STEP })}
         </div>
       </div>
-      <p className="mt-2 truncate text-[11px] text-slate-400" title={message}>
-        {message}
+      <p
+        aria-live="polite"
+        className={`mt-2 truncate text-[11px] ${
+          feedback.isError ? "text-red-300" : "text-slate-400"
+        }`}
+        title={feedback.message}
+      >
+        {feedback.message}
       </p>
     </div>
   );

@@ -3,165 +3,175 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
+import {
+  executePinSequence,
+  loadPinConfig,
+  type PinExecutionProgress,
+} from "@/lib/pin";
 import {
   cancelMotion,
   executeMotionCommand,
-  resetMotionCancellation,
-  ROBOT_CONFIG,
-  type Vector3Value,
+  resetCancellation,
 } from "@/lib/robot";
-import {
-  createPinSequence,
-  normalizePinConfig,
-  validatePinDetailed,
-  type NormalizedPinConfig,
-  type PinApproachAxis,
-} from "@/lib/pin";
 import { useRobotStore } from "@/store/robot-store";
 
-function createHoverTarget(
-  target: Vector3Value,
-  approachAxis: PinApproachAxis,
-): Vector3Value {
-  const offset = ROBOT_CONFIG.hoverOffset;
-
-  switch (approachAxis) {
-    case "+x":
-      return { ...target, x: target.x - offset };
-    case "-x":
-      return { ...target, x: target.x + offset };
-    case "+y":
-      return { ...target, y: target.y - offset };
-    case "-y":
-      return { ...target, y: target.y + offset };
-    case "+z":
-      return { ...target, z: target.z - offset };
-    case "-z":
-      return { ...target, z: target.z + offset };
-  }
+function createInitialProgress(pin = ""): PinExecutionProgress {
+  return {
+    pin,
+    phase: "idle",
+    currentDigit: null,
+    currentIndex: null,
+    completedCount: 0,
+    completedSteps: 0,
+    totalSteps: 18,
+    message: "PIN automation ready.",
+  };
 }
 
 export function usePinAutomation() {
-  const [config, setConfig] = useState<NormalizedPinConfig | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [message, setMessage] = useState("Loading panel configuration...");
+  const runningRef = useRef(false);
+  const cancellationRequestedRef = useRef(false);
+  const [pin, setPin] = useState("");
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<PinExecutionProgress>(() =>
+    createInitialProgress(),
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/robot/key.config.json")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Panel configuration failed to load: ${response.status}.`);
-        }
-
-        return response.json();
-      })
-      .then((rawConfig: unknown) => {
-        const parsed = normalizePinConfig(rawConfig);
-        if (cancelled) {
-          return;
-        }
-
-        if (!parsed.success) {
-          setMessage(parsed.error);
-          return;
-        }
-
-        setConfig(parsed.config);
-        setMessage("Panel configuration is ready.");
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Panel configuration failed to load.");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const start = useCallback(async (pin: string) => {
-    if (!config || running) {
+  async function start(): Promise<void> {
+    if (runningRef.current) {
       return;
     }
 
-    const validation = validatePinDetailed(pin, config);
-    if (!validation.success) {
-      setMessage(validation.error);
-      return;
-    }
-
-    const store = useRobotStore.getState();
-    resetMotionCancellation();
-    store.resetPinProgress();
-    setCurrentIndex(0);
+    runningRef.current = true;
+    cancellationRequestedRef.current = false;
     setRunning(true);
+    setProgress({
+      ...createInitialProgress(pin),
+      phase: "validating",
+      message: "Loading panel configuration...",
+    });
+    let storeProgressStarted = false;
 
     try {
-      const digits = createPinSequence(validation.pin);
+      const configResult = await loadPinConfig();
 
-      for (const [pinIndex, keyLabel] of digits.entries()) {
-        const key = config.keys[keyLabel];
-        const hoverTarget = createHoverTarget(key.position, config.approachAxis);
-        const targets = [hoverTarget, key.position, hoverTarget];
-
-        store.setPinProgress(keyLabel, pinIndex);
-        setCurrentIndex(pinIndex);
-        setMessage(`Pressing key ${keyLabel} (${pinIndex + 1} of ${digits.length}).`);
-
-        for (const target of targets) {
-          const result = await executeMotionCommand({
-            type: "MOVE_TO",
-            source: "autonomous",
-            target,
-            speed: 0.9,
-          });
-
-          if (!result.success) {
-            setMessage(result.message);
-            return;
-          }
-        }
-
-        store.setPinProgress(keyLabel, pinIndex + 1);
-        setCurrentIndex(pinIndex + 1);
+      if (cancellationRequestedRef.current) {
+        setProgress({
+          ...createInitialProgress(pin),
+          phase: "cancelled",
+          message: "PIN entry was cancelled before motion started.",
+        });
+        return;
       }
 
-      store.setActiveKey(null);
-      setMessage("PIN entry completed successfully.");
+      if (!configResult.success) {
+        setProgress({
+          ...createInitialProgress(pin),
+          phase: "failed",
+          message: configResult.error,
+        });
+        return;
+      }
+
+      const robotStore = useRobotStore.getState();
+
+      await executePinSequence(pin, configResult.config, {
+        executeMotion: executeMotionCommand,
+        resetCancellation,
+        isCancellationRequested: () => cancellationRequestedRef.current,
+        onProgress: (nextProgress) => {
+          setProgress(nextProgress);
+
+          if (
+            nextProgress.phase === "hover" ||
+            nextProgress.phase === "touch" ||
+            nextProgress.phase === "retract"
+          ) {
+            if (!storeProgressStarted) {
+              robotStore.resetPinProgress();
+              storeProgressStarted = true;
+            }
+
+            robotStore.setPinProgress(
+              nextProgress.currentDigit,
+              nextProgress.completedCount,
+            );
+            return;
+          }
+
+          if (nextProgress.phase === "completed") {
+            robotStore.setPinProgress(null, nextProgress.completedCount);
+            return;
+          }
+
+          if (
+            storeProgressStarted &&
+            (nextProgress.phase === "failed" || nextProgress.phase === "cancelled")
+          ) {
+            robotStore.setActiveKey(null);
+          }
+        },
+      });
+    } catch (error) {
+      if (storeProgressStarted) {
+        useRobotStore.getState().setActiveKey(null);
+      }
+
+      setProgress({
+        ...createInitialProgress(pin),
+        phase: cancellationRequestedRef.current ? "cancelled" : "failed",
+        message:
+          error instanceof Error
+            ? `PIN automation failed unexpectedly: ${error.message}`
+            : "PIN automation failed unexpectedly.",
+      });
     } finally {
+      runningRef.current = false;
       setRunning(false);
     }
-  }, [config, running]);
+  }
 
-  const cancel = useCallback(() => {
-    cancelMotion();
-    setMessage("PIN entry cancellation requested.");
-  }, []);
-
-  const reset = useCallback(() => {
-    if (running) {
-      cancelMotion();
+  function stop(): void {
+    if (!runningRef.current) {
+      return;
     }
 
-    resetMotionCancellation();
+    cancellationRequestedRef.current = true;
+    cancelMotion();
+    useRobotStore.getState().setActiveKey(null);
+    setProgress((current) => ({
+      ...current,
+      phase: "cancelled",
+      message: "Cancellation requested. Waiting for the current motion to stop.",
+    }));
+  }
+
+  function reset(): void {
+    if (runningRef.current) {
+      return;
+    }
+
+    cancellationRequestedRef.current = false;
+    setPin("");
+    setProgress(createInitialProgress());
     useRobotStore.getState().resetPinProgress();
-    setCurrentIndex(0);
-    setMessage("PIN progress reset.");
-  }, [running]);
+  }
 
   return {
-    cancel,
-    configReady: config !== null,
-    currentIndex,
-    message,
+    pin,
+    setPin,
+    start,
+    stop,
     reset,
     running,
-    start,
+    currentDigit: progress.currentDigit,
+    currentIndex: progress.currentIndex,
+    currentPhase: progress.phase,
+    completedCount: progress.completedCount,
+    completedSteps: progress.completedSteps,
+    totalSteps: progress.totalSteps,
+    message: progress.message,
   };
 }

@@ -17,6 +17,12 @@ import {
 import { JOINT_NAMES } from "@/lib/robot/types";
 import { parseVoiceCommand } from "@/lib/voice";
 import {
+  isAudioRecordingAvailable,
+  startAudioRecording,
+  transcribeAudio,
+  type AudioRecordingSession,
+} from "@/lib/voice/audio-recorder";
+import {
   createSpeechRecognitionSession,
   isSpeechRecognitionAvailable,
   type SpeechRecognitionSession,
@@ -61,6 +67,14 @@ function getServerSpeechRecognitionAvailability(): boolean {
   return false;
 }
 
+function isVoiceCaptureAvailable(): boolean {
+  return isSpeechRecognitionAvailable() || isAudioRecordingAvailable();
+}
+
+// Records for at most this long before auto-transcribing, so a forgotten
+// Stop click cannot leave the microphone open indefinitely.
+const FALLBACK_MAX_RECORDING_MS = 6000;
+
 function parseRouteResponse(value: unknown): AgentRouteResponse {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as AgentRouteResponse)
@@ -90,12 +104,15 @@ export function useAgenticControl() {
   const [totalSteps, setTotalSteps] = useState(0);
   const [spokenFeedback, setSpokenFeedback] = useState(false);
   const recognitionSessionRef = useRef<SpeechRecognitionSession | null>(null);
+  const fallbackModeRef = useRef(false);
+  const recorderRef = useRef<AudioRecordingSession | null>(null);
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancellationRequestedRef = useRef(false);
   const requestVersionRef = useRef(0);
   const pendingClarificationRef = useRef<PendingClarification | null>(null);
   const speechRecognitionAvailable = useSyncExternalStore(
     subscribeToSpeechRecognitionAvailability,
-    isSpeechRecognitionAvailable,
+    isVoiceCaptureAvailable,
     getServerSpeechRecognitionAvailability,
   );
   const robotLoaded = useRobotStore((state) => state.robotLoaded);
@@ -372,8 +389,81 @@ export function useAgenticControl() {
     announce("Agentic request cancelled.");
   }
 
+  async function startFallbackListening(startMessage?: string): Promise<void> {
+    if (recorderRef.current) {
+      return;
+    }
+
+    try {
+      const recorder = await startAudioRecording();
+      recorderRef.current = recorder;
+      setStatus("listening");
+      setMessage(
+        startMessage ??
+          "Recording (server transcription)... speak your instruction, then press Stop.",
+      );
+      recordingTimeoutRef.current = setTimeout(() => {
+        void finishFallbackListening();
+      }, FALLBACK_MAX_RECORDING_MS);
+    } catch (error) {
+      setStatus("failed");
+      setMessage(
+        error instanceof Error && error.name === "NotAllowedError"
+          ? "Microphone access is blocked. Allow the microphone permission for this site."
+          : "Could not start microphone recording. Use typed input instead.",
+      );
+    }
+  }
+
+  async function finishFallbackListening(): Promise<void> {
+    const recorder = recorderRef.current;
+
+    if (!recorder) {
+      return;
+    }
+
+    recorderRef.current = null;
+
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+
+    setMessage("Transcribing your instruction...");
+
+    try {
+      const audio = await recorder.stop();
+      const recognizedTranscript = await transcribeAudio(audio);
+
+      if (recognizedTranscript.length === 0) {
+        setStatus("failed");
+        setMessage("No speech was detected in the recording. Try again.");
+        return;
+      }
+
+      setInput(recognizedTranscript);
+      void interpretInstruction(recognizedTranscript);
+    } catch (error) {
+      setStatus("failed");
+      setMessage(
+        error instanceof Error ? error.message : "Transcription failed. Use typed input instead.",
+      );
+    }
+  }
+
   function startListening(): void {
     if (status === "interpreting" || status === "executing") {
+      return;
+    }
+
+    if (fallbackModeRef.current || !isSpeechRecognitionAvailable()) {
+      if (isAudioRecordingAvailable()) {
+        void startFallbackListening();
+        return;
+      }
+
+      setStatus("failed");
+      setMessage("Voice capture is unavailable in this browser. Use typed input instead.");
       return;
     }
 
@@ -385,6 +475,27 @@ export function useAgenticControl() {
           void interpretInstruction(recognizedTranscript);
         },
         onTranscriptError: (errorMessage) => {
+          // The browser's built-in recognition streams audio to a vendor
+          // speech service; when that service is unreachable (Brave
+          // shields, VPN, firewall) it reports "network" even though the
+          // site itself is online. Switch to recording locally and
+          // transcribing through our own API instead.
+          if (!fallbackModeRef.current && errorMessage.includes("internet connection")) {
+            if (isAudioRecordingAvailable()) {
+              fallbackModeRef.current = true;
+              void startFallbackListening(
+                "Browser speech service unreachable. Switched to server transcription - recording now, press Stop when done.",
+              );
+              return;
+            }
+
+            setStatus("failed");
+            setMessage(
+              "Browser speech service is unreachable and microphone recording is unsupported here. Use typed input instead.",
+            );
+            return;
+          }
+
           setStatus("failed");
           setMessage(errorMessage);
         },
@@ -409,6 +520,11 @@ export function useAgenticControl() {
   }
 
   function stopListening(): void {
+    if (recorderRef.current) {
+      void finishFallbackListening();
+      return;
+    }
+
     recognitionSessionRef.current?.stop();
     if (status === "listening") {
       setStatus("idle");
@@ -421,6 +537,14 @@ export function useAgenticControl() {
       requestVersionRef.current += 1;
       recognitionSessionRef.current?.dispose();
       recognitionSessionRef.current = null;
+      recorderRef.current?.cancel();
+      recorderRef.current = null;
+
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
+      }
+
       window.speechSynthesis?.cancel();
     };
   }, []);

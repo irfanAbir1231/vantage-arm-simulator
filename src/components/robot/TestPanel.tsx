@@ -6,6 +6,7 @@
 import { RoundedBox, Text } from "@react-three/drei";
 import { useEffect, useMemo, useState } from "react";
 
+import { ROBOT_CONFIG } from "@/lib/robot";
 import { useRobotStore } from "@/store/robot-store";
 
 import { fetchKeyConfig, type NormalizedKeyConfig } from "./key-config";
@@ -14,9 +15,13 @@ import { baseFrameToScenePosition } from "./scene-coordinates";
 const KEY_FOOTPRINT = 0.034;
 const KEY_IDLE_HEIGHT = 0.022;
 const KEY_PRESSED_HEIGHT = 0.009;
+// Visually forgiving compared to the strict PIN tolerance so the pressed
+// look reads clearly the moment the stylus tip settles onto the key.
+const TOUCH_RADIUS_METERS = ROBOT_CONFIG.keyPressTolerance * 2;
 
 export function TestPanel() {
   const activeKey = useRobotStore((state) => state.activeKey);
+  const endEffectorPosition = useRobotStore((state) => state.endEffectorPosition);
   const [config, setConfig] = useState<NormalizedKeyConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,12 +89,20 @@ export function TestPanel() {
         </mesh>
       ) : null}
       {keys.map((key) => {
-        const isActive = activeKey === key.label;
-        const height = isActive ? KEY_PRESSED_HEIGHT : KEY_IDLE_HEIGHT;
-        const capColor = isActive ? "#fbbf24" : "#eef2f8";
-        const capEmissive = isActive ? "#7c2d12" : "#1e293b";
-        const collarColor = isActive ? "#78350f" : "#16324f";
-        const textColor = isActive ? "#1c1207" : "#0f172a";
+        const isTargeted = activeKey === key.label;
+        const distance = Math.hypot(
+          endEffectorPosition.x - key.position.x,
+          endEffectorPosition.y - key.position.y,
+          endEffectorPosition.z - key.position.z,
+        );
+        // The keycap only sinks/highlights once the stylus tip has actually
+        // arrived, not the instant the PIN sequence starts targeting it.
+        const isTouching = distance <= TOUCH_RADIUS_METERS;
+        const height = isTouching ? KEY_PRESSED_HEIGHT : KEY_IDLE_HEIGHT;
+        const capColor = isTouching ? "#fbbf24" : "#eef2f8";
+        const capEmissive = isTouching ? "#7c2d12" : "#1e293b";
+        const collarColor = isTouching ? "#78350f" : isTargeted ? "#2d4d70" : "#16324f";
+        const textColor = isTouching ? "#1c1207" : "#0f172a";
 
         return (
           <group
@@ -112,9 +125,9 @@ export function TestPanel() {
               <meshStandardMaterial
                 color={capColor}
                 emissive={capEmissive}
-                emissiveIntensity={isActive ? 0.6 : 0.15}
+                emissiveIntensity={isTouching ? 0.6 : 0.15}
                 metalness={0.1}
-                roughness={isActive ? 0.35 : 0.5}
+                roughness={isTouching ? 0.35 : 0.5}
               />
             </RoundedBox>
             <Text

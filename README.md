@@ -41,6 +41,14 @@ User input
 
 Agentic voice mode adds a server-side reasoning step before the structured command API. The model can interpret natural language, but it cannot directly move the robot, provide panel coordinates, or bypass validation.
 
+## Hardware Circuit Diagram
+
+![Vantage Arm Simulator circuit diagram](./circuit_diagram.jpeg)
+
+The circuit reference shows the ESP32-based six-axis servo setup used for the hardware concept. A live Wokwi simulation is available here:
+
+[Open the Wokwi circuit simulation](https://wokwi.com/projects/469130070109874177)
+
 ## Features
 
 ### 3D simulation
@@ -171,6 +179,7 @@ public/robot/                    Runtime URDF and panel configuration
 hardware/                        Hardware-facing project materials
 presentation/                    Hackathon presentation assets
 system-architecture.png          Submission architecture diagram
+circuit_diagram.jpeg              Hardware circuit diagram
 ```
 
 ## Scope and Limitations

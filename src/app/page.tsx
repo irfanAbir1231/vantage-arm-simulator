@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <main className="mx-auto grid min-h-screen w-full max-w-7xl gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="min-h-[520px]">
+        <section className="h-[620px] min-h-[520px] self-start lg:h-[760px]">
           <RobotScene />
         </section>
         <aside className="flex flex-col gap-4">

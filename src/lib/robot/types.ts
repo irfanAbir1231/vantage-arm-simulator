@@ -14,42 +14,57 @@ export type MotionSource =
   | "voice"
   | "autonomous";
 
+type MotionMetadata = {
+  id?: string;
+  speed?: number;
+};
+
 export type MotionCommand =
-  | {
-      id: string;
+  | (MotionMetadata & {
       type: "MOVE_RELATIVE";
       source: MotionSource;
       delta: Vector3Value;
-      speed?: number;
-    }
-  | {
-      id: string;
+    })
+  | (MotionMetadata & {
       type: "MOVE_TO";
       source: MotionSource;
       target: Vector3Value;
-      speed?: number;
-    }
-  | {
-      id: string;
+    })
+  | (MotionMetadata & {
       type: "MOVE_JOINT";
       source: MotionSource;
       jointName: string;
       angle: number;
-      speed?: number;
-    }
+    })
   | {
-      id: string;
+      id?: string;
       type: "STOP";
       source: MotionSource;
     }
   | {
-      id: string;
+      id?: string;
       type: "HOME";
       source: MotionSource;
+      speed?: number;
     };
+
+export const JOINT_NAMES = [
+  "joint_1",
+  "joint_2",
+  "joint_3",
+  "joint_4",
+  "joint_5",
+  "joint_6",
+  "stylus_pitch",
+] as const;
+
+export type JointName = (typeof JOINT_NAMES)[number];
+export type JointAngles = Record<JointName, number> & Record<string, number>;
+export type JointState = JointAngles;
 
 export type MotionFailureReason =
   | "INVALID_COMMAND"
+  | "BUSY"
   | "OUTSIDE_WORKSPACE"
   | "JOINT_LIMIT"
   | "IK_FAILED"
@@ -61,6 +76,8 @@ export type MotionResult =
       success: true;
       commandId: string;
       finalPosition: Vector3Value;
+      target: Vector3Value;
+      jointAngles: JointAngles;
       message: string;
     }
   | {
@@ -78,4 +95,8 @@ export type MotionStatus =
   | "error"
   | "cancelled";
 
-export type JointState = Record<string, number>;
+export type RobotMotionStatus = MotionStatus;
+
+export function isJointName(value: string): value is JointName {
+  return JOINT_NAMES.some((jointName) => jointName === value);
+}

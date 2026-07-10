@@ -3,58 +3,103 @@
 
 import { create } from "zustand";
 
+import {
+  computeForwardKinematics,
+  INITIAL_JOINT_ANGLES,
+} from "@/lib/robot/kinematics";
 import type {
-  JointState,
+  JointAngles,
   MotionResult,
   MotionSource,
   MotionStatus,
   Vector3Value,
-} from "@/lib/robot";
+} from "@/lib/robot/types";
 
 type RobotStore = {
   robotLoaded: boolean;
-  jointAngles: JointState;
+  jointAngles: JointAngles;
   endEffectorPosition: Vector3Value;
   targetPosition: Vector3Value;
   status: MotionStatus;
   activeSource: MotionSource | null;
   activeKey: string | null;
   currentPinIndex: number;
+  completedDigits: number;
   lastMessage: string;
   lastResult: MotionResult | null;
+  isCancelled: boolean;
   setRobotLoaded: (robotLoaded: boolean) => void;
-  setJointAngles: (jointAngles: JointState) => void;
-  setEndEffectorPosition: (endEffectorPosition: Vector3Value) => void;
-  setTargetPosition: (targetPosition: Vector3Value) => void;
-  setStatus: (status: MotionStatus) => void;
-  setActiveSource: (activeSource: MotionSource | null) => void;
+  beginMotion: (source: MotionSource, target: Vector3Value) => void;
+  updateTrajectory: (jointAngles: JointAngles, position: Vector3Value) => void;
+  completeMotion: (result: Extract<MotionResult, { success: true }>) => void;
+  failMotion: (source: MotionSource, result: Extract<MotionResult, { success: false }>) => void;
+  markCancelled: (result: Extract<MotionResult, { success: false }>) => void;
+  resetCancellation: () => void;
+  setPinProgress: (activeKey: string | null, completedDigits: number) => void;
   setActiveKey: (activeKey: string | null) => void;
   setCurrentPinIndex: (currentPinIndex: number) => void;
-  setLastMessage: (lastMessage: string) => void;
-  setLastResult: (lastResult: MotionResult | null) => void;
+  resetPinProgress: () => void;
 };
 
-const ZERO_VECTOR: Vector3Value = { x: 0, y: 0, z: 0 };
+const initialPosition = computeForwardKinematics(INITIAL_JOINT_ANGLES);
 
 export const useRobotStore = create<RobotStore>((set) => ({
   robotLoaded: false,
-  jointAngles: {},
-  endEffectorPosition: ZERO_VECTOR,
-  targetPosition: ZERO_VECTOR,
+  jointAngles: { ...INITIAL_JOINT_ANGLES },
+  endEffectorPosition: initialPosition,
+  targetPosition: initialPosition,
   status: "idle",
   activeSource: null,
   activeKey: null,
   currentPinIndex: 0,
-  lastMessage: "Robot store placeholder is ready.",
+  completedDigits: 0,
+  lastMessage: "Ready for a motion command.",
   lastResult: null,
+  isCancelled: false,
   setRobotLoaded: (robotLoaded) => set({ robotLoaded }),
-  setJointAngles: (jointAngles) => set({ jointAngles }),
-  setEndEffectorPosition: (endEffectorPosition) => set({ endEffectorPosition }),
-  setTargetPosition: (targetPosition) => set({ targetPosition }),
-  setStatus: (status) => set({ status }),
-  setActiveSource: (activeSource) => set({ activeSource }),
+  beginMotion: (activeSource, targetPosition) =>
+    set({
+      activeSource,
+      targetPosition,
+      status: "moving",
+      lastMessage: "Motion in progress.",
+      isCancelled: false,
+    }),
+  updateTrajectory: (jointAngles, endEffectorPosition) =>
+    set({ jointAngles, endEffectorPosition }),
+  completeMotion: (result) =>
+    set({
+      status: "success",
+      lastMessage: result.message,
+      lastResult: result,
+      targetPosition: result.target,
+      isCancelled: false,
+    }),
+  failMotion: (activeSource, result) =>
+    set({
+      activeSource,
+      status: "error",
+      lastMessage: result.message,
+      lastResult: result,
+      isCancelled: false,
+    }),
+  markCancelled: (result) =>
+    set({
+      status: "cancelled",
+      lastMessage: result.message,
+      lastResult: result,
+      isCancelled: true,
+    }),
+  resetCancellation: () =>
+    set({
+      status: "idle",
+      lastMessage: "Ready for a new motion command.",
+      isCancelled: false,
+    }),
+  setPinProgress: (activeKey, completedDigits) =>
+    set({ activeKey, completedDigits, currentPinIndex: completedDigits }),
   setActiveKey: (activeKey) => set({ activeKey }),
-  setCurrentPinIndex: (currentPinIndex) => set({ currentPinIndex }),
-  setLastMessage: (lastMessage) => set({ lastMessage }),
-  setLastResult: (lastResult) => set({ lastResult }),
+  setCurrentPinIndex: (currentPinIndex) =>
+    set({ currentPinIndex, completedDigits: currentPinIndex }),
+  resetPinProgress: () => set({ activeKey: null, completedDigits: 0, currentPinIndex: 0 }),
 }));

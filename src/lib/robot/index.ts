@@ -3,20 +3,42 @@
 
 export { ROBOT_CONFIG } from "./config";
 export { describeMotionCommand } from "./commands";
-export { cancelMotion, executeMotionCommand, resetCancellation } from "./controller";
+export {
+  cancelMotion,
+  executeMotionCommand,
+  resetCancellation,
+  resetMotionCancellation,
+} from "./controller";
 export { cloneVector } from "./coordinates";
 export { estimateEndEffectorPosition } from "./forward-kinematics";
-export { solveInverseKinematics } from "./inverse-kinematics";
-export { isKinematicsReady } from "./kinematics";
-export { isWithinWorkspace } from "./safety";
-export { isWithinTolerance } from "./tolerance";
-export { interpolateValue } from "./trajectory";
+export {
+  computeForwardKinematics,
+  INITIAL_JOINT_ANGLES,
+  isKinematicsReady,
+  solveInverseKinematics,
+} from "./kinematics";
+export {
+  isWithinTolerance,
+  isWithinWorkspace,
+  validateJointAngles,
+  validateMotionCommand,
+  validateWorkspace,
+} from "./safety";
+export {
+  createJointTrajectory,
+  getTrajectoryStepDuration,
+  interpolateValue,
+  lerp,
+} from "./trajectory";
 export type {
+  JointAngles,
+  JointName,
   JointState,
   MotionCommand,
   MotionFailureReason,
   MotionResult,
   MotionSource,
   MotionStatus,
+  RobotMotionStatus,
   Vector3Value,
 } from "./types";

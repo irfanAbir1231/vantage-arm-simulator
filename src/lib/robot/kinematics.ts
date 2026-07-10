@@ -120,7 +120,7 @@ export function solveInverseKinematics(
   target: Vector3Value,
   currentJointAngles: JointAngles,
 ): IkSolution | null {
-  const seeds = [cloneJointAngles(currentJointAngles), createPanelSeed(target)];
+  const seeds = [cloneJointAngles(currentJointAngles), createDescentSeed(target)];
   let closestSolution: IkSolution | null = null;
 
   for (const seed of seeds) {
@@ -224,14 +224,50 @@ function calculateDampedLeastSquaresDelta(
   );
 }
 
-function createPanelSeed(target: Vector3Value): JointAngles {
+// Upper-arm / forearm link lengths (joint_2->joint_3, joint_3->joint_5) and the
+// rigid wrist-to-tip length (joint_5->stylus_pitch->tip), taken from JOINT_DEFINITIONS
+// and STYLUS_TIP_OFFSET. Used to seed the numeric solver with a pose where the
+// wrist sits above the target and the tool points straight down, so the solver
+// converges on an approach-from-above configuration instead of swinging the
+// forearm under the base to reach the same point from below.
+const SHOULDER_TO_ELBOW_LENGTH = 0.25;
+const ELBOW_TO_WRIST_LENGTH = 0.4;
+const WRIST_TO_TIP_LENGTH = 0.4 + STYLUS_TIP_OFFSET.z;
+const SHOULDER_PIVOT_HEIGHT = 0.06 + 0.25;
+
+function createDescentSeed(target: Vector3Value): JointAngles {
+  const joint1 = Math.atan2(target.y, target.x);
+  const reach = Math.sqrt(target.x ** 2 + target.y ** 2);
+  const wristHeight = target.z + WRIST_TO_TIP_LENGTH;
+
+  const horizontal = reach;
+  const vertical = wristHeight - SHOULDER_PIVOT_HEIGHT;
+  const maxReach = SHOULDER_TO_ELBOW_LENGTH + ELBOW_TO_WRIST_LENGTH - 1e-6;
+  const minReach = Math.abs(SHOULDER_TO_ELBOW_LENGTH - ELBOW_TO_WRIST_LENGTH) + 1e-6;
+  const distance = clamp(Math.sqrt(horizontal ** 2 + vertical ** 2), minReach, maxReach);
+
+  const cosElbow =
+    (distance ** 2 - SHOULDER_TO_ELBOW_LENGTH ** 2 - ELBOW_TO_WRIST_LENGTH ** 2) /
+    (2 * SHOULDER_TO_ELBOW_LENGTH * ELBOW_TO_WRIST_LENGTH);
+  const elbowAngle = Math.acos(clamp(cosElbow, -1, 1));
+
+  const baseAngle = Math.atan2(horizontal, vertical);
+  const cosShoulderOffset =
+    (SHOULDER_TO_ELBOW_LENGTH ** 2 + distance ** 2 - ELBOW_TO_WRIST_LENGTH ** 2) /
+    (2 * SHOULDER_TO_ELBOW_LENGTH * distance);
+  const shoulderOffset = Math.acos(clamp(cosShoulderOffset, -1, 1));
+
+  const shoulderAngle = baseAngle - shoulderOffset;
+  const cumulativeAngle = shoulderAngle + elbowAngle;
+  const wristAngle = Math.PI - cumulativeAngle;
+
   return {
     ...INITIAL_JOINT_ANGLES,
-    joint_1: Math.atan2(target.y, target.x),
-    joint_2: 1.4,
-    joint_3: -2,
-    joint_5: -1.4,
-    stylus_pitch: -1,
+    joint_1: joint1,
+    joint_2: shoulderAngle,
+    joint_3: elbowAngle,
+    joint_5: wristAngle,
+    stylus_pitch: 0,
   };
 }
 

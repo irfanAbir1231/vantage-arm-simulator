@@ -3,10 +3,14 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { executeMotionCommand } from "@/lib/robot";
 import { isSpeechRecognitionAvailable, parseVoiceCommand } from "@/lib/voice";
+
+function subscribeToNothing() {
+  return () => {};
+}
 
 type SpeechRecognitionResult = {
   0?: { transcript: string };
@@ -44,6 +48,11 @@ export function useVoiceControl() {
   const [transcript, setTranscript] = useState("");
   const [message, setMessage] = useState("Voice control is ready for typed commands.");
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const speechAvailable = useSyncExternalStore(
+    subscribeToNothing,
+    isSpeechRecognitionAvailable,
+    () => false,
+  );
 
   const submitCommand = useCallback(async (input: string) => {
     const parsed = parseVoiceCommand(input, `voice-${Date.now()}`);
@@ -100,7 +109,7 @@ export function useVoiceControl() {
   return {
     listening,
     message,
-    speechAvailable: typeof window !== "undefined" && isSpeechRecognitionAvailable(),
+    speechAvailable,
     startListening,
     submitCommand,
     transcript,

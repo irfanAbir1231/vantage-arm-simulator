@@ -1,4 +1,6 @@
 import type { Vector3Value } from "@/lib/robot";
+import { getJointDefinition } from "@/lib/robot/kinematics";
+import { isWithinWorkspace } from "@/lib/robot/safety";
 import { isJointName } from "@/lib/robot/types";
 
 import type {
@@ -108,7 +110,13 @@ function parseAction(value: unknown, context: AgentValidationContext): AgentActi
     }
 
     const target = parseVector(value.target, "MOVE_TO target");
-    return typeof target === "string" ? target : { type: "MOVE_TO", target };
+    if (typeof target === "string") {
+      return target;
+    }
+
+    return isWithinWorkspace(target)
+      ? { type: "MOVE_TO", target }
+      : "MOVE_TO target is outside the configured workspace.";
   }
 
   if (value.type === "MOVE_JOINT") {
@@ -129,6 +137,14 @@ function parseAction(value: unknown, context: AgentValidationContext): AgentActi
       Math.abs(value.angleRadians) > MAX_ABSOLUTE_JOINT_ANGLE
     ) {
       return "MOVE_JOINT angleRadians must be a finite value within the safe planning range.";
+    }
+
+    const jointDefinition = getJointDefinition(value.jointName);
+    if (
+      value.angleRadians < jointDefinition.lower ||
+      value.angleRadians > jointDefinition.upper
+    ) {
+      return `MOVE_JOINT angleRadians is outside the ${value.jointName} URDF joint limits.`;
     }
 
     return {

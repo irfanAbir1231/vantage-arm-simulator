@@ -24,6 +24,7 @@ export function AgentPlanPreview({
   return (
     <div className="mt-2 border-t border-slate-800 pt-2">
       <p className="text-[11px] text-slate-300">Understood: {decision.understood}</p>
+      <p className="mt-1 text-[11px] text-slate-400">Assistant: {decision.spokenResponse}</p>
       <ol className="mt-1 grid gap-1 text-[11px] text-slate-400">
         {decision.actions.map((action, index) => (
           <li className="flex gap-1" key={`${action.type}-${index}`}>

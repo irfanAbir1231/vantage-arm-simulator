@@ -103,6 +103,7 @@ export function useAgenticControl() {
   const [currentStep, setCurrentStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(0);
   const [spokenFeedback, setSpokenFeedback] = useState(false);
+  const spokenFeedbackRef = useRef(spokenFeedback);
   const recognitionSessionRef = useRef<SpeechRecognitionSession | null>(null);
   const fallbackModeRef = useRef(false);
   const recorderRef = useRef<AudioRecordingSession | null>(null);
@@ -117,6 +118,8 @@ export function useAgenticControl() {
   );
   const robotLoaded = useRobotStore((state) => state.robotLoaded);
   const motionStatus = useRobotStore((state) => state.status);
+
+  spokenFeedbackRef.current = spokenFeedback;
 
   function isCurrentRequest(version: number): boolean {
     return requestVersionRef.current === version;
@@ -272,6 +275,15 @@ export function useAgenticControl() {
     const parsedDecision = parseAgentDecision(routeResponse.decision, {
       availableKeys: Object.keys(configResult.config.keys),
       allowedJointNames: JOINT_NAMES,
+      panel: {
+        frame: configResult.config.frame,
+        units: configResult.config.units,
+        approachAxis: configResult.config.approachAxis,
+      },
+      robot: {
+        baseJointName: "joint_1",
+        jointAngleUnits: "radians",
+      },
     });
     if (!parsedDecision.success) {
       pendingClarificationRef.current = null;
@@ -533,8 +545,23 @@ export function useAgenticControl() {
   }
 
   useEffect(() => {
+    function handleEmergencyStop(): void {
+      requestVersionRef.current += 1;
+      pendingClarificationRef.current = null;
+      cancellationRequestedRef.current = true;
+      resetPendingPlan();
+      setStatus("failed");
+      setMessage("Emergency stop cancelled the agentic request.");
+      if (spokenFeedbackRef.current) {
+        speakSpeechFeedback("Emergency stop cancelled the agentic request.");
+      }
+    }
+
+    window.addEventListener("vantage:emergency-stop", handleEmergencyStop);
+
     return () => {
       requestVersionRef.current += 1;
+      window.removeEventListener("vantage:emergency-stop", handleEmergencyStop);
       recognitionSessionRef.current?.dispose();
       recognitionSessionRef.current = null;
       recorderRef.current?.cancel();

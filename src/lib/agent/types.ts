@@ -1,3 +1,4 @@
+import type { PinApproachAxis } from "@/lib/pin";
 import type { JointName, Vector3Value } from "@/lib/robot";
 
 export type AgentAction =
@@ -50,6 +51,17 @@ export type AgentRejectionDecision = {
   spokenResponse: string;
 };
 
+export type AgentPanelContext = {
+  frame: string;
+  units: "meters";
+  approachAxis: PinApproachAxis;
+};
+
+export type AgentRobotContext = {
+  baseJointName: JointName;
+  jointAngleUnits: "radians";
+};
+
 export type AgentDecision =
   | AgentPlanDecision
   | AgentClarificationDecision
@@ -58,6 +70,8 @@ export type AgentDecision =
 export type AgentValidationContext = {
   availableKeys: readonly string[];
   allowedJointNames: readonly JointName[];
+  panel: AgentPanelContext;
+  robot: AgentRobotContext;
 };
 
 export type AgentInterpretationContext = {

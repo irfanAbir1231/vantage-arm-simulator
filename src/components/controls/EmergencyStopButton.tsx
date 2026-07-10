@@ -12,6 +12,7 @@ export function EmergencyStopButton() {
 
   function stopMotion(): void {
     cancelMotion();
+    window.dispatchEvent(new Event("vantage:emergency-stop"));
     setRequested(true);
   }
 

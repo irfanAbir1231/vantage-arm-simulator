@@ -52,6 +52,8 @@ The Voice panel defaults to deterministic mode, which works locally without a ne
 
 Agentic plans can use relative Cartesian movement, absolute Cartesian movement, individual joint movement, trusted panel-key presses, home, and stop. Every compiled step is sent through the same deterministic motion controller, workspace validation, inverse-kinematics, joint-limit, and cancellation pipeline as the other controls. Key presses use only the organizer-provided `public/robot/key.config.json` positions and the existing hover/touch/retract planner.
 
+The agent receives the trusted panel frame (`base_link`), meter units, and panel approach direction from the key configuration. Phrases such as "toward the panel" are mapped to that configured approach direction, while base rotation uses the trusted `joint_1` mapping and radians internally. Ambiguous references produce a clarification question instead of an automatic movement.
+
 Configure these server-side variables in your local environment or deployment provider without committing a secret file:
 
 ```text

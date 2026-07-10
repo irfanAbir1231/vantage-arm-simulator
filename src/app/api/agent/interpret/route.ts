@@ -51,6 +51,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       {
         availableKeys: Object.keys(panelConfig.keys),
         allowedJointNames: JOINT_NAMES,
+        panel: {
+          frame: panelConfig.frame,
+          units: panelConfig.units,
+          approachAxis: panelConfig.approachAxis,
+        },
+        robot: {
+          baseJointName: "joint_1",
+          jointAngleUnits: "radians",
+        },
       },
     );
 

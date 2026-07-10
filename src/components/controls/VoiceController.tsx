@@ -16,6 +16,13 @@ export function VoiceController() {
     understood,
     result,
     isError,
+    listening,
+    transcript,
+    speechRecognitionAvailable,
+    speechMessage,
+    speechError,
+    startListening,
+    stopListening,
   } = useVoiceControl();
   const isStopCommand = input.trim().toLowerCase() === "stop";
 
@@ -27,10 +34,48 @@ export function VoiceController() {
   return (
     <div className="rounded-md border border-slate-800 p-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-slate-200">Typed Command</h3>
+        <h3 className="text-sm font-semibold text-slate-200">Voice and Typed Command</h3>
         <span className="text-xs text-slate-500">
-          {isExecuting ? "Executing" : "Ready"}
+          {listening
+            ? "Listening"
+            : isExecuting
+              ? "Executing"
+              : speechRecognitionAvailable
+                ? "Microphone ready"
+                : "Typed only"}
         </span>
+      </div>
+
+      <div className="mt-3 rounded border border-slate-800 bg-slate-950 px-3 py-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="rounded-md border border-emerald-700 bg-emerald-950 px-3 py-2 text-xs font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              speechRecognitionAvailable !== true || listening || isExecuting
+            }
+            onClick={startListening}
+            type="button"
+          >
+            Start microphone
+          </button>
+          <button
+            className="rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!listening}
+            onClick={stopListening}
+            type="button"
+          >
+            Stop listening
+          </button>
+        </div>
+        <p
+          aria-live="polite"
+          className={`mt-2 text-xs ${speechError ? "text-red-300" : "text-slate-400"}`}
+        >
+          {speechMessage}
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Transcript: <span className="text-slate-300">{transcript || "None"}</span>
+        </p>
       </div>
 
       <form className="mt-3" onSubmit={handleSubmit}>

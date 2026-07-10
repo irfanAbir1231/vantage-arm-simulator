@@ -3,9 +3,14 @@
 
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { parseVoiceCommand } from "@/lib/voice";
+import {
+  createSpeechRecognitionSession,
+  isSpeechRecognitionAvailable,
+  type SpeechRecognitionSession,
+} from "@/lib/voice/speech-recognition";
 import { cancelMotion, executeMotionCommand } from "@/lib/robot";
 
 type VoiceCommandFeedback = {
@@ -14,26 +19,52 @@ type VoiceCommandFeedback = {
   isError: boolean;
 };
 
-let typedCommandSequence = 0;
+type SpeechFeedback = {
+  message: string;
+  isError: boolean;
+};
 
-function createTypedCommandId(): string {
-  typedCommandSequence += 1;
-  return `typed-voice-${Date.now()}-${typedCommandSequence}`;
+let voiceCommandSequence = 0;
+
+function createVoiceCommandId(): string {
+  voiceCommandSequence += 1;
+  return `voice-${Date.now()}-${voiceCommandSequence}`;
+}
+
+function subscribeToSpeechRecognitionAvailability(): () => void {
+  return () => undefined;
+}
+
+function getServerSpeechRecognitionAvailability(): boolean {
+  return false;
 }
 
 export function useVoiceControl() {
   const isExecutingRef = useRef(false);
   const executionVersionRef = useRef(0);
+  const recognitionSessionRef = useRef<SpeechRecognitionSession | null>(null);
+  const listeningRef = useRef(false);
   const [input, setInput] = useState("");
+  const [transcript, setTranscript] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
+  const [listening, setListening] = useState(false);
+  const speechRecognitionAvailable = useSyncExternalStore(
+    subscribeToSpeechRecognitionAvailability,
+    isSpeechRecognitionAvailable,
+    getServerSpeechRecognitionAvailability,
+  );
   const [feedback, setFeedback] = useState<VoiceCommandFeedback>({
     understood: "No command parsed yet.",
     result: "No command executed yet.",
     isError: false,
   });
+  const [speechFeedback, setSpeechFeedback] = useState<SpeechFeedback>({
+    message: "Microphone not started.",
+    isError: false,
+  });
 
-  async function executeTypedCommand(): Promise<void> {
-    const parseResult = parseVoiceCommand(input, createTypedCommandId());
+  async function executeCommandText(commandText: string): Promise<void> {
+    const parseResult = parseVoiceCommand(commandText, createVoiceCommandId());
 
     if (!parseResult.success) {
       setFeedback({
@@ -101,6 +132,112 @@ export function useVoiceControl() {
     }
   }
 
+  function handleTranscript(recognizedTranscript: string): void {
+    listeningRef.current = false;
+    setListening(false);
+    setTranscript(recognizedTranscript);
+    setInput(recognizedTranscript);
+    setSpeechFeedback({
+      message: "Transcript captured. Executing deterministic command.",
+      isError: false,
+    });
+    void executeCommandText(recognizedTranscript);
+  }
+
+  function handleTranscriptError(message: string): void {
+    listeningRef.current = false;
+    setListening(false);
+    setSpeechFeedback({ message, isError: true });
+  }
+
+  function executeTypedCommand(): Promise<void> {
+    return executeCommandText(input);
+  }
+
+  function startListening(): void {
+    if (listeningRef.current) {
+      return;
+    }
+
+    if (isExecutingRef.current) {
+      setSpeechFeedback({
+        message: "Wait for the current command to finish before listening.",
+        isError: true,
+      });
+      return;
+    }
+
+    let session = recognitionSessionRef.current;
+
+    if (!session) {
+      session = createSpeechRecognitionSession({
+        onTranscript: handleTranscript,
+        onTranscriptError: handleTranscriptError,
+      });
+      recognitionSessionRef.current = session;
+    }
+
+    if (!session) {
+      setSpeechFeedback({
+        message: "Speech recognition is unavailable. Typed commands remain ready.",
+        isError: true,
+      });
+      return;
+    }
+
+    try {
+      session.start();
+      listeningRef.current = true;
+      setListening(true);
+      setSpeechFeedback({ message: "Listening for one command...", isError: false });
+    } catch (error) {
+      listeningRef.current = false;
+      setListening(false);
+      setSpeechFeedback({
+        message:
+          error instanceof Error
+            ? `Could not start speech recognition: ${error.message}`
+            : "Could not start speech recognition. Use typed input instead.",
+        isError: true,
+      });
+    }
+  }
+
+  function stopListening(): void {
+    const session = recognitionSessionRef.current;
+
+    if (!session || !listeningRef.current) {
+      return;
+    }
+
+    try {
+      session.stop();
+      setSpeechFeedback({
+        message: "Listening stopped. No command was executed.",
+        isError: false,
+      });
+    } catch (error) {
+      setSpeechFeedback({
+        message:
+          error instanceof Error
+            ? `Could not stop speech recognition: ${error.message}`
+            : "Could not stop speech recognition cleanly.",
+        isError: true,
+      });
+    } finally {
+      listeningRef.current = false;
+      setListening(false);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      recognitionSessionRef.current?.dispose();
+      recognitionSessionRef.current = null;
+      listeningRef.current = false;
+    };
+  }, []);
+
   return {
     input,
     setInput,
@@ -109,7 +246,15 @@ export function useVoiceControl() {
     understood: feedback.understood,
     result: feedback.result,
     isError: feedback.isError,
-    listening: false,
-    transcript: "",
+    listening,
+    transcript,
+    speechRecognitionAvailable,
+    speechMessage:
+      !speechRecognitionAvailable && speechFeedback.message === "Microphone not started."
+        ? "Speech recognition is unavailable. Typed commands remain ready."
+        : speechFeedback.message,
+    speechError: speechFeedback.isError,
+    startListening,
+    stopListening,
   };
 }

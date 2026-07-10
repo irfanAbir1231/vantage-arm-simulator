@@ -9,17 +9,18 @@ import { VoiceController } from "./VoiceController";
 
 export function ControlWorkspace() {
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-        Controls
-      </h2>
-      <div className="mt-3 grid gap-3">
+    <div className="grid gap-2">
+      <EmergencyStopButton />
+      <section className="rounded-lg border border-slate-800 bg-slate-900 p-3">
         <CartesianJoystick />
         <KeyboardController />
+      </section>
+      <section className="rounded-lg border border-slate-800 bg-slate-900 p-3">
         <VoiceController />
+      </section>
+      <section className="rounded-lg border border-slate-800 bg-slate-900 p-3">
         <PinEntryController />
-        <EmergencyStopButton />
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }

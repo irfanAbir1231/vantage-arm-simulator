@@ -20,21 +20,21 @@ export function JointStatePanel() {
   return (
     <DashboardLayout title="Joint State">
       {jointNames.length > 0 ? (
-        <dl className="grid gap-2 text-sm">
+        <dl className="grid gap-1">
           {jointNames.map((jointName) => (
             <div
-              className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded bg-slate-950 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded bg-slate-950 px-2 py-1.5"
               key={jointName}
             >
-              <dt className="truncate text-slate-300">{jointName}</dt>
-              <dd className="font-mono text-slate-100">
+              <dt className="truncate text-[11px] text-slate-400">{jointName}</dt>
+              <dd className="whitespace-nowrap font-mono text-[11px] text-slate-100">
                 {formatRadians(jointAngles[jointName])}
               </dd>
             </div>
           ))}
         </dl>
       ) : (
-        <p className="text-sm text-slate-400">
+        <p className="text-xs text-slate-400">
           Waiting for motion engine joint telemetry.
         </p>
       )}

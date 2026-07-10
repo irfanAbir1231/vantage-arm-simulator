@@ -16,15 +16,20 @@ export function EmergencyStopButton() {
   };
 
   return (
-    <div className="border-t border-slate-800 pt-3">
+    <div>
       <button
-        className="w-full border border-red-700 bg-red-950 px-3 py-2 text-sm font-semibold text-red-100 hover:bg-red-900"
+        className="w-full rounded-lg border-2 border-red-700 bg-red-950 px-3 py-2.5 text-sm font-bold uppercase tracking-widest text-red-100 transition hover:bg-red-900 active:bg-red-800"
         onClick={() => void stopMotion()}
+        title="Cancel all motion immediately"
         type="button"
       >
-        Emergency Stop
+        ■ Emergency Stop
       </button>
-      {message ? <p className="mt-2 text-xs text-red-200">{message}</p> : null}
+      {message ? (
+        <p className="mt-1 truncate text-center text-[11px] text-red-300" title={message}>
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { URDFRobot } from "./URDFRobot";
 
 export function RobotScene() {
   return (
-    <div className="h-full min-h-[620px] overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+    <div className="h-full overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
       <Canvas camera={{ position: [1.65, 1.35, 2.45], fov: 50 }}>
         <color attach="background" args={["#020617"]} />
         <SceneCamera />

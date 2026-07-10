@@ -1,3 +1,6 @@
+// OWNER: Team Lead
+// Do not edit without coordinating with the owner.
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";

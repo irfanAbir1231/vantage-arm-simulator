@@ -1,3 +1,6 @@
+// OWNER: Member 2 - Motion Engine, IK, Safety, Shared Store
+// Do not edit without coordinating with the owner.
+
 import {
   JOINT_NAMES,
   type JointAngles,
@@ -339,4 +342,8 @@ function clamp(value: number, lower: number, upper: number): number {
 
 function areJointAnglesFinite(jointAngles: JointAngles): boolean {
   return JOINT_NAMES.every((jointName) => Number.isFinite(jointAngles[jointName]));
+}
+
+export function isKinematicsReady(): boolean {
+  return true;
 }

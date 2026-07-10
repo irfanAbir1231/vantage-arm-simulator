@@ -1,3 +1,6 @@
+// OWNER: Member 2 - Motion Engine, IK, Safety, Shared Store
+// Do not edit without coordinating with the owner.
+
 import {
   getJointDefinition,
   PIN_TOLERANCE_METERS,
@@ -36,6 +39,15 @@ export function validateMotionCommand(command: MotionCommand): ValidationFailure
     return invalidCommand("Motion source is not recognized.");
   }
 
+  if (command.type === "STOP" || command.type === "HOME") {
+    return command.type === "HOME" ? validateSpeed(command.speed) : null;
+  }
+
+  const speedFailure = validateSpeed(command.speed);
+  if (speedFailure) {
+    return speedFailure;
+  }
+
   if (command.type === "MOVE_RELATIVE") {
     return validateVector(command.delta, "Movement delta");
   }
@@ -72,9 +84,13 @@ export function validateWorkspace(target: Vector3Value): ValidationFailure | nul
   return isInside
     ? null
     : {
-        reason: "workspace",
+        reason: "OUTSIDE_WORKSPACE",
         message: "Target is outside the configured workspace bounds.",
       };
+}
+
+export function isWithinWorkspace(position: Vector3Value): boolean {
+  return validateWorkspace(position) === null;
 }
 
 export function validateJointAngles(jointAngles: JointAngles): ValidationFailure | null {
@@ -87,7 +103,7 @@ export function validateJointAngles(jointAngles: JointAngles): ValidationFailure
     const definition = getJointDefinition(jointName);
     if (angle < definition.lower || angle > definition.upper) {
       return {
-        reason: "joint-limit",
+        reason: "JOINT_LIMIT",
         message: `${jointName} is outside its URDF joint limit.`,
       };
     }
@@ -115,5 +131,15 @@ function validateVector(vector: Vector3Value, label: string): ValidationFailure 
 }
 
 function invalidCommand(message: string): ValidationFailure {
-  return { reason: "invalid-command", message };
+  return { reason: "INVALID_COMMAND", message };
+}
+
+function validateSpeed(speed: number | undefined): ValidationFailure | null {
+  if (speed === undefined) {
+    return null;
+  }
+
+  return Number.isFinite(speed) && speed > 0
+    ? null
+    : invalidCommand("Motion speed must be a positive finite number.");
 }

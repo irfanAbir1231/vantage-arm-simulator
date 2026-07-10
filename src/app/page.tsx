@@ -15,13 +15,13 @@ export default function Home() {
         <SystemStatus />
       </header>
       <main className="grid min-h-0 flex-1 grid-cols-[226px_minmax(0,1fr)_290px] gap-2 p-2">
-        <aside className="min-h-0 overflow-y-auto">
+        <aside className="min-h-0 overflow-x-hidden overflow-y-auto">
           <RobotDashboard />
         </aside>
         <section className="min-h-0">
           <RobotScene />
         </section>
-        <aside className="min-h-0 overflow-y-auto">
+        <aside className="min-h-0 overflow-x-hidden overflow-y-auto">
           <ControlWorkspace />
         </aside>
       </main>

@@ -46,7 +46,28 @@ export type PinPlanStep = {
   target: Vector3Value;
 };
 
-// Retained until the PIN-validation subpass migrates the existing validator.
+export type KeyPressPlanResult =
+  | {
+      success: true;
+      steps: PinPlanStep[];
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+export type PinPlanResult =
+  | {
+      success: true;
+      pin: string;
+      steps: PinPlanStep[];
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+// Retained for the existing createEmptyPinConfig compatibility export.
 export type PinConfig = {
   keys: PinKeyTarget[];
 };

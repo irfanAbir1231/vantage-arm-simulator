@@ -9,8 +9,8 @@ export const ROBOT_CONFIG = {
   defaultSpeed: 0.5,
   hoverOffset: 0.03,
   workspace: {
-    x: [-1, 1],
-    y: [-1, 1],
+    x: [-0.75, 0.75],
+    y: [-0.75, 0.75],
     z: [0, 1.5],
   },
 } as const;

@@ -15,6 +15,7 @@ import {
   executeMotionCommand,
   resetCancellation,
 } from "@/lib/robot";
+import { useRobotStore } from "@/store/robot-store";
 
 function createInitialProgress(pin = ""): PinExecutionProgress {
   return {
@@ -51,6 +52,7 @@ export function usePinAutomation() {
       phase: "validating",
       message: "Loading panel configuration...",
     });
+    let storeProgressStarted = false;
 
     try {
       const configResult = await loadPinConfig();
@@ -73,13 +75,50 @@ export function usePinAutomation() {
         return;
       }
 
+      const robotStore = useRobotStore.getState();
+
       await executePinSequence(pin, configResult.config, {
         executeMotion: executeMotionCommand,
         resetCancellation,
         isCancellationRequested: () => cancellationRequestedRef.current,
-        onProgress: setProgress,
+        onProgress: (nextProgress) => {
+          setProgress(nextProgress);
+
+          if (
+            nextProgress.phase === "hover" ||
+            nextProgress.phase === "touch" ||
+            nextProgress.phase === "retract"
+          ) {
+            if (!storeProgressStarted) {
+              robotStore.resetPinProgress();
+              storeProgressStarted = true;
+            }
+
+            robotStore.setPinProgress(
+              nextProgress.currentDigit,
+              nextProgress.completedCount,
+            );
+            return;
+          }
+
+          if (nextProgress.phase === "completed") {
+            robotStore.setPinProgress(null, nextProgress.completedCount);
+            return;
+          }
+
+          if (
+            storeProgressStarted &&
+            (nextProgress.phase === "failed" || nextProgress.phase === "cancelled")
+          ) {
+            robotStore.setActiveKey(null);
+          }
+        },
       });
     } catch (error) {
+      if (storeProgressStarted) {
+        useRobotStore.getState().setActiveKey(null);
+      }
+
       setProgress({
         ...createInitialProgress(pin),
         phase: cancellationRequestedRef.current ? "cancelled" : "failed",
@@ -101,6 +140,7 @@ export function usePinAutomation() {
 
     cancellationRequestedRef.current = true;
     cancelMotion();
+    useRobotStore.getState().setActiveKey(null);
     setProgress((current) => ({
       ...current,
       phase: "cancelled",
